@@ -10,6 +10,7 @@ import { AgreementPdf } from "../src/pdf/templates/agreement";
 import { ProposalPdf } from "../src/pdf/templates/proposal";
 import { OfferLetterPdf } from "../src/pdf/templates/offer-letter";
 import { RelievingLetterPdf } from "../src/pdf/templates/relieving-letter";
+import { InvoicePdf } from "../src/pdf/templates/invoice";
 import { sampleDocs } from "./samples";
 
 async function main() {
@@ -24,6 +25,7 @@ async function main() {
     ["proposal", <ProposalPdf key="p" doc={docs.proposal as never} />],
     ["offer-letter", <OfferLetterPdf key="o" doc={docs["offer-letter"] as never} />],
     ["relieving-letter", <RelievingLetterPdf key="r" doc={docs["relieving-letter"] as never} />],
+    ["invoice", <InvoicePdf key="i" doc={docs.invoice as never} />],
   ];
   for (const [name, el] of jobs) {
     const buf = await renderToBuffer(el as never);

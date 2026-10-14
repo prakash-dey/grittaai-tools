@@ -33,7 +33,7 @@ export const signatories = sqliteTable("signatories", {
  */
 export const documents = sqliteTable("documents", {
   id: text("id").primaryKey(),
-  type: text("type").notNull(), // "agreement" | "proposal" | "offer-letter" | "relieving-letter"
+  type: text("type").notNull(), // "agreement" | "proposal" | "offer-letter" | "relieving-letter" | "invoice"
   title: text("title").notNull(),
   recipient: text("recipient").notNull(),
   data: text("data", { mode: "json" }).notNull(),

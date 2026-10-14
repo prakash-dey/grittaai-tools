@@ -153,6 +153,73 @@ export const relievingLetterSchema = z.object({
 });
 export type RelievingLetterInput = z.infer<typeof relievingLetterSchema>;
 
+/* ----------------------------------- Invoice ----------------------------------- */
+
+export const taxModeLabels = {
+  none: "No GST",
+  "cgst-sgst": "CGST + SGST (same state)",
+  igst: "IGST (other state)",
+} as const;
+
+const round2 = (n: number) => Math.round(n * 100) / 100;
+
+/** Line amounts, tax and balance for an invoice. Shared by the form, validation and the PDF. */
+export function invoiceTotals(v: { items: { quantity: number; rate: number }[]; tax: { mode: keyof typeof taxModeLabels; ratePct: number }; amountPaid: number }) {
+  const lines = v.items.map((i) => round2((i.quantity || 0) * (i.rate || 0)));
+  const subtotal = round2(lines.reduce((s, n) => s + n, 0));
+  const taxed = v.tax.mode !== "none" && v.tax.ratePct > 0;
+  const halfRate = v.tax.ratePct / 2;
+  const cgst = taxed && v.tax.mode === "cgst-sgst" ? round2((subtotal * halfRate) / 100) : 0;
+  const sgst = cgst;
+  const igst = taxed && v.tax.mode === "igst" ? round2((subtotal * v.tax.ratePct) / 100) : 0;
+  const total = round2(subtotal + cgst + sgst + igst);
+  return { lines, subtotal, taxed, halfRate, cgst, sgst, igst, total, balance: round2(total - (v.amountPaid || 0)) };
+}
+
+export const invoiceSchema = z
+  .object({
+    invoiceNumber: text("Invoice number"),
+    invoiceDate: isoDate,
+    dueDate: isoDate,
+    clientName: text("Client name"),
+    clientAddress: text("Client address"),
+    clientGstin: z.string().trim().toUpperCase().default(""),
+    placeOfSupply: z.string().trim().default(""),
+    items: z
+      .array(
+        z.object({
+          description: text("Description"),
+          quantity: z.coerce.number().positive("Quantity must be above zero"),
+          rate: money,
+        }),
+      )
+      .min(1, "Add at least one item"),
+    tax: z.object({
+      mode: z.enum(["none", "cgst-sgst", "igst"]),
+      ratePct: nonNeg,
+      companyGstin: z.string().trim().toUpperCase().default(""),
+    }),
+    amountPaid: nonNeg.default(0),
+    showBankDetails: z.boolean(),
+    /** Optional: blank lines are dropped rather than flagged. */
+    notes: z.array(z.string().trim()).default([]).transform((list) => list.filter(Boolean)),
+    signatoryIds: z.array(z.string()).length(1, "Pick one signatory"),
+  })
+  .superRefine((v, ctx) => {
+    if (v.dueDate < v.invoiceDate) {
+      ctx.addIssue({ code: "custom", path: ["dueDate"], message: "Due date cannot be before the invoice date" });
+    }
+    if (v.tax.mode !== "none") {
+      if (!v.tax.companyGstin) ctx.addIssue({ code: "custom", path: ["tax", "companyGstin"], message: "Enter Gritta AI's GSTIN to charge GST" });
+      if (v.tax.ratePct <= 0) ctx.addIssue({ code: "custom", path: ["tax", "ratePct"], message: "Enter a GST rate above zero" });
+    }
+    const { total } = invoiceTotals(v);
+    if (v.amountPaid > total + 0.005) {
+      ctx.addIssue({ code: "custom", path: ["amountPaid"], message: "Amount already paid cannot exceed the invoice total" });
+    }
+  });
+export type InvoiceInput = z.infer<typeof invoiceSchema>;
+
 /* ---------------------------------- Registry ---------------------------------- */
 
 export const DOC_SCHEMAS = {
@@ -160,6 +227,7 @@ export const DOC_SCHEMAS = {
   proposal: proposalSchema,
   "offer-letter": offerLetterSchema,
   "relieving-letter": relievingLetterSchema,
+  invoice: invoiceSchema,
 } as const;
 
 export type DocType = keyof typeof DOC_SCHEMAS;

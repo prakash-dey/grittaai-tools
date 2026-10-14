@@ -1,6 +1,6 @@
 import { todayISO } from "@/lib/format";
 import { SERVICE_LIBRARY } from "./library";
-import type { AgreementInput, OfferLetterInput, ProposalInput, RelievingLetterInput } from "./schemas";
+import type { AgreementInput, InvoiceInput, OfferLetterInput, ProposalInput, RelievingLetterInput } from "./schemas";
 
 /** Starting values for each form. Dates default to today; everything else mirrors past Gritta AI documents. */
 
@@ -98,6 +98,25 @@ export function relievingLetterDefaults(signatoryIds: string[]): RelievingLetter
     separationReason: "resignation",
     duesSettled: true,
     appreciation: "",
+    signatoryIds: signatoryIds.slice(0, 1),
+  };
+}
+
+export function invoiceDefaults(signatoryIds: string[], invoiceNumber: string): InvoiceInput {
+  const today = todayISO();
+  return {
+    invoiceNumber,
+    invoiceDate: today,
+    dueDate: addDays(today, 7),
+    clientName: "",
+    clientAddress: "",
+    clientGstin: "",
+    placeOfSupply: "",
+    items: [{ description: "", quantity: 1, rate: 0 }],
+    tax: { mode: "none", ratePct: 18, companyGstin: "" },
+    amountPaid: 0,
+    showBankDetails: true,
+    notes: [],
     signatoryIds: signatoryIds.slice(0, 1),
   };
 }

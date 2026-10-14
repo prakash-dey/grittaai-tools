@@ -56,3 +56,16 @@ export async function proposalPackages() {
   });
 }
 export type ProposalPackageOption = Awaited<ReturnType<typeof proposalPackages>>[number];
+
+/**
+ * The number after the most recent saved invoice: the trailing digits go up by one and keep
+ * their width ("GAI-2026-009" -> "GAI-2026-010"). Starts at "INV-0001".
+ */
+export async function nextInvoiceNumber() {
+  const rows = await db.select().from(schema.documents).where(eq(schema.documents.type, "invoice")).orderBy(desc(schema.documents.createdAt)).limit(1);
+  const last = rows[0] ? (rows[0].data as Extract<ResolvedDoc, { type: "invoice" }>).input.invoiceNumber : null;
+  const m = last ? /^(.*?)(\d+)(\D*)$/.exec(last) : null;
+  if (!m) return last ? `${last}-2` : "INV-0001";
+  const n = String(Number(m[2]) + 1).padStart(m[2].length, "0");
+  return `${m[1]}${n}${m[3]}`;
+}

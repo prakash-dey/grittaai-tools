@@ -137,5 +137,30 @@ export function sampleDocs(signature: string | null): Record<string, ResolvedDoc
         signatoryIds: ["s1"],
       },
     },
+    invoice: {
+      type: "invoice",
+      company,
+      bank,
+      signatories: [monirul],
+      input: {
+        invoiceNumber: "GAI-2026-014",
+        invoiceDate: "2026-10-14",
+        dueDate: "2026-10-21",
+        clientName: "Avik Bhattacharyya",
+        clientAddress: "Nea Plus, Sus, Pune - 411021",
+        clientGstin: "27ABCDE1234F1Z5",
+        placeOfSupply: "Maharashtra (27)",
+        items: [
+          { description: "Call Setting, Sales Follow-up and Sales Closing Services: Tranche 1 of 3", quantity: 1, rate: 30000 },
+          { description: "Live reporting dashboard setup", quantity: 1, rate: 5000 },
+          { description: "Additional closing calls", quantity: 4, rate: 1250 },
+        ],
+        tax: { mode: "igst", ratePct: 18, companyGstin: "29ABCDE1234F1Z5" },
+        amountPaid: 10000,
+        showBankDetails: true,
+        notes: ["Please quote the invoice number when making the payment."],
+        signatoryIds: ["s1"],
+      },
+    },
   };
 }

@@ -1,4 +1,4 @@
-import type { AgreementInput, DocType, OfferLetterInput, ProposalInput, RelievingLetterInput } from "./schemas";
+import type { AgreementInput, DocType, InvoiceInput, OfferLetterInput, ProposalInput, RelievingLetterInput } from "./schemas";
 
 /** Frozen copies of shared data, stored inside each generated document. */
 export type CompanySnapshot = { companyName: string; email: string; website: string; jurisdiction: string };
@@ -17,6 +17,7 @@ export type ResolvedDoc =
   | Resolved<"agreement", AgreementInput>
   | Resolved<"proposal", ProposalInput>
   | Resolved<"offer-letter", OfferLetterInput>
-  | Resolved<"relieving-letter", RelievingLetterInput>;
+  | Resolved<"relieving-letter", RelievingLetterInput>
+  | Resolved<"invoice", InvoiceInput>;
 
 export type ResolvedOf<T extends DocType> = Extract<ResolvedDoc, { type: T }>;

@@ -8,6 +8,7 @@ const DATE_FIELD: Record<DocType, string> = {
   proposal: "date",
   "offer-letter": "letterDate",
   "relieving-letter": "letterDate",
+  invoice: "invoiceDate",
 };
 
 /**

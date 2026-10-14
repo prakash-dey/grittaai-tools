@@ -7,6 +7,7 @@ import { AgreementPdf } from "./templates/agreement";
 import { ProposalPdf } from "./templates/proposal";
 import { OfferLetterPdf } from "./templates/offer-letter";
 import { RelievingLetterPdf } from "./templates/relieving-letter";
+import { InvoicePdf } from "./templates/invoice";
 
 /** Render any resolved document to a PDF buffer. */
 export async function renderPdf(doc: ResolvedDoc): Promise<Buffer> {
@@ -20,5 +21,7 @@ export async function renderPdf(doc: ResolvedDoc): Promise<Buffer> {
       return renderToBuffer(<OfferLetterPdf doc={doc} />);
     case "relieving-letter":
       return renderToBuffer(<RelievingLetterPdf doc={doc} />);
+    case "invoice":
+      return renderToBuffer(<InvoicePdf doc={doc} />);
   }
 }

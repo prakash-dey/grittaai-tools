@@ -8,6 +8,7 @@ One internal platform for Gritta AI's document tools. Fill in a form, watch the 
 | **Package Creator** | Service proposals comparing up to four packages side by side. Saved packages can be loaded straight into a new agreement. |
 | **Offer Letter** | Offers for full-time, part-time, contract and internship roles. The candidate's acceptance line stays blank. |
 | **Exit Letter** | Single-page relieving letters. |
+| **Invoice** | Client invoices: line items, optional GST (CGST + SGST or IGST), advance received and balance due, amount in words, bank details. Invoice numbers count up from the last saved invoice. |
 
 Shared across tools:
 

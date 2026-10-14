@@ -22,35 +22,33 @@ function deepClean<T>(value: T): T {
   return value;
 }
 
-/**
- * Validate raw form input and attach frozen copies of company, bank and signatory data.
- * The result is everything a template needs, and is what gets stored for a saved document.
- */
-export async function resolveDocument(type: DocType, raw: unknown): Promise<ResolvedDoc> {
-  const parsed = DOC_SCHEMAS[type].safeParse(raw);
-  if (!parsed.success) {
-    // Say which list item an error belongs to, e.g. "Package 2: Enter an amount above zero".
-    const itemLabel: Record<string, string> = { packages: "Package", tranches: "Tranche", services: "Service" };
-    throw new ValidationError(
-      parsed.error.issues.map((i) => {
-        const [root, index] = i.path;
-        const prefix = typeof index === "number" && itemLabel[String(root)] ? `${itemLabel[String(root)]} ${index + 1}: ` : "";
-        return { path: i.path.join("."), message: prefix + i.message };
-      }),
-    );
-  }
-  const input = deepClean(parsed.data);
+type Issue = { path: string; message: string };
 
+/** Validate raw form input, labelling list errors by item, e.g. "Package 2: Enter an amount above zero". */
+function validate(type: DocType, raw: unknown): { input: unknown; issues: Issue[] } {
+  const parsed = DOC_SCHEMAS[type].safeParse(raw);
+  if (parsed.success) return { input: parsed.data, issues: [] };
+  const itemLabel: Record<string, string> = { packages: "Package", tranches: "Tranche", services: "Service", items: "Item" };
+  const issues = parsed.error.issues.map((i) => {
+    const [root, index] = i.path;
+    const prefix = typeof index === "number" && itemLabel[String(root)] ? `${itemLabel[String(root)]} ${index + 1}: ` : "";
+    return { path: i.path.join("."), message: prefix + i.message };
+  });
+  return { input: raw, issues };
+}
+
+/** Attach frozen copies of company, bank and signatory data to validated (or draft) input. */
+async function attachSnapshots(type: DocType, input: { signatoryIds?: string[] }, { strict }: { strict: boolean }): Promise<ResolvedDoc> {
   const [settings] = await db.select().from(schema.settings).where(eq(schema.settings.id, "default"));
   if (!settings) throw new Error("Company settings are missing. Run `npm run setup`.");
 
-  const ids = input.signatoryIds;
+  const ids = Array.isArray(input.signatoryIds) ? input.signatoryIds : [];
   const rows = ids.length ? await db.select().from(schema.signatories).where(inArray(schema.signatories.id, ids)) : [];
   const signatories = ids
     .map((id) => rows.find((r) => r.id === id))
     .filter((r): r is NonNullable<typeof r> => Boolean(r))
     .map((r) => ({ id: r.id, name: r.name, title: r.title, signature: r.signature }));
-  if (signatories.length !== ids.length) {
+  if (strict && signatories.length !== ids.length) {
     throw new ValidationError([{ path: "signatoryIds", message: "A selected signatory no longer exists" }]);
   }
 
@@ -73,6 +71,26 @@ export async function resolveDocument(type: DocType, raw: unknown): Promise<Reso
   } as ResolvedDoc;
 }
 
+/**
+ * Validate raw form input and attach frozen copies of company, bank and signatory data.
+ * The result is everything a template needs, and is what gets stored for a saved document.
+ */
+export async function resolveDocument(type: DocType, raw: unknown): Promise<ResolvedDoc> {
+  const { input, issues } = validate(type, raw);
+  if (issues.length) throw new ValidationError(issues);
+  return attachSnapshots(type, deepClean(input) as { signatoryIds: string[] }, { strict: true });
+}
+
+/**
+ * Like resolveDocument, but never rejects incomplete input: the live preview renders whatever
+ * has been filled in so far (empty fields stay blank) and reports what is still missing.
+ */
+export async function resolveDraft(type: DocType, raw: unknown): Promise<{ doc: ResolvedDoc; issues: Issue[] }> {
+  const { input, issues } = validate(type, raw);
+  const doc = await attachSnapshots(type, deepClean((input ?? {}) as { signatoryIds?: string[] }), { strict: false });
+  return { doc, issues };
+}
+
 /** Human-readable title and recipient for the document history list. */
 export function describeDocument(doc: ResolvedDoc) {
   const tool = TOOLS[doc.type];
@@ -85,13 +103,15 @@ export function describeDocument(doc: ResolvedDoc) {
       return { title: `${tool.short}: ${doc.input.position}`, recipient: doc.input.candidateName, date: formatDate(doc.input.letterDate) };
     case "relieving-letter":
       return { title: `${tool.short}: ${doc.input.position}`, recipient: doc.input.employeeName, date: formatDate(doc.input.letterDate) };
+    case "invoice":
+      return { title: `${tool.short} ${doc.input.invoiceNumber}`, recipient: doc.input.clientName, date: formatDate(doc.input.invoiceDate) };
   }
 }
 
 /** Safe download filename, e.g. "Gritta_AI_Agreement_Avik_Bhattacharyya.pdf" */
 export function fileNameFor(doc: ResolvedDoc) {
   const { recipient } = describeDocument(doc);
-  const kind = { agreement: "Agreement", proposal: "Proposal", "offer-letter": "Offer_Letter", "relieving-letter": "Relieving_Letter" }[doc.type];
+  const kind = { agreement: "Agreement", proposal: "Proposal", "offer-letter": "Offer_Letter", "relieving-letter": "Relieving_Letter", invoice: "Invoice" }[doc.type];
   const slug = (s: string) => s.replace(/[^A-Za-z0-9]+/g, "_").replace(/^_|_$/g, "");
   return `${slug(doc.company.companyName)}_${kind}_${slug(recipient)}.pdf`;
 }

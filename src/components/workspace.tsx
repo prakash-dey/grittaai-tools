@@ -30,6 +30,9 @@ export function DocumentWorkspace({
   const [previewPdf, setPreviewPdf] = useState<Blob | null>(null);
   const [previewing, setPreviewing] = useState(false);
   const [issues, setIssues] = useState<Issue[]>([]);
+  // Missing fields are only pointed out once the user tries to generate, not while they are still typing.
+  const [showIssues, setShowIssues] = useState(false);
+  const [previewError, setPreviewError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [showPreviewMobile, setShowPreviewMobile] = useState(false);
@@ -48,13 +51,14 @@ export function DocumentWorkspace({
         });
         if (res.ok) {
           setPreviewPdf(await res.blob());
-          setIssues([]);
+          setIssues(JSON.parse(decodeURIComponent(res.headers.get("X-Document-Issues") ?? "%5B%5D")));
+          setPreviewError(null);
         } else {
           const body = await res.json().catch(() => ({}));
-          setIssues(body.issues ?? [{ path: "", message: body.error ?? "Preview failed" }]);
+          setPreviewError(body.error ?? "Preview failed");
         }
       } catch (err) {
-        if ((err as Error).name !== "AbortError") setIssues([{ path: "", message: "Could not reach the server for a preview." }]);
+        if ((err as Error).name !== "AbortError") setPreviewError("Could not reach the server for a preview.");
       } finally {
         if (!ctrl.signal.aborted) setPreviewing(false);
       }
@@ -65,6 +69,8 @@ export function DocumentWorkspace({
     };
   }, [serialized, type]);
 
+  // The server validates strictly and refuses incomplete documents, so nothing is saved
+  // (or downloadable) until every required field is filled in.
   async function save() {
     setSaving(true);
     setSaveError(null);
@@ -76,7 +82,10 @@ export function DocumentWorkspace({
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
-        if (body.issues) setIssues(body.issues);
+        if (body.issues) {
+          setIssues(body.issues);
+          setShowIssues(true);
+        }
         setSaveError(body.error ?? "Could not save the document.");
         return;
       }
@@ -86,7 +95,8 @@ export function DocumentWorkspace({
     }
   }
 
-  const errorFor = (path: string) => issues.find((i) => i.path === path || i.path.startsWith(path + "."))?.message;
+  const visibleIssues = showIssues ? issues : [];
+  const errorFor = (path: string) => visibleIssues.find((i) => i.path === path || i.path.startsWith(path + "."))?.message;
 
   return (
     <div className="flex min-h-screen flex-col xl:flex-row">
@@ -98,10 +108,10 @@ export function DocumentWorkspace({
         <div className="space-y-5 pb-28">{children(errorFor)}</div>
         <div className="fixed inset-x-0 bottom-0 z-20 border-t border-line bg-white/95 px-4 py-3 backdrop-blur sm:px-8 lg:left-60 xl:right-auto xl:w-[640px] 2xl:w-[720px]">
           <div className="space-y-2">
-            {issues.length ? <ErrorList errors={issues} /> : null}
+            {visibleIssues.length ? <ErrorList errors={visibleIssues} /> : null}
             {saveError && !issues.length ? <p className="text-sm text-red-600">{saveError}</p> : null}
             <div className="flex items-center gap-2">
-              <Button onClick={save} disabled={saving || issues.length > 0}>
+              <Button onClick={save} disabled={saving} className={issues.length ? "opacity-60" : ""}>
                 <IconCheck className="h-4 w-4" />
                 {saving ? "Saving..." : "Generate & save"}
               </Button>
@@ -109,7 +119,15 @@ export function DocumentWorkspace({
                 <IconEye className="h-4 w-4" />
                 {showPreviewMobile ? "Hide preview" : "Preview"}
               </Button>
-              <span className="ml-auto text-xs text-muted">{previewing ? "Updating preview..." : issues.length ? "" : "Preview is up to date"}</span>
+              <span className={`ml-auto text-xs ${previewError ? "text-red-600" : "text-muted"}`}>
+                {previewing
+                  ? "Updating preview..."
+                  : previewError
+                    ? previewError
+                    : issues.length
+                      ? `${issues.length} ${issues.length === 1 ? "field needs" : "fields need"} attention before you can download`
+                      : "Ready to generate"}
+              </span>
             </div>
           </div>
         </div>
@@ -129,7 +147,7 @@ export function DocumentWorkspace({
           </div>
         ) : (
           <div className="flex flex-1 items-center justify-center text-sm text-muted">
-            {issues.length ? "Fill in the required fields to see a preview." : "Rendering preview..."}
+            {previewError ?? "Rendering preview..."}
           </div>
         )}
       </div>
